@@ -1,76 +1,41 @@
 import streamlit as st
 import numpy as np
-import tensorflow as tf
+import pandas as pd
 
-# Load models
-@st.cache_resource
-def load_model_h5(file_path):
-    """Load the model saved as an HDF5 file."""
-    model = tf.keras.models.load_model(file_path)
-    
-    # If the LSTM layer has any incompatible configurations like 'time_major', adjust them
-    for layer in model.layers:
-        if isinstance(layer, tf.keras.layers.LSTM):
-            config = layer.get_config()
-            if 'time_major' in config:
-                config.pop('time_major')  # Remove time_major argument if it exists
-                layer.__init__(**config)  # Reinitialize the LSTM layer with the new config
-    return model
+# Define the number of sensors and acceptable ranges for the sensor inputs
+NUM_SENSORS = 14
+SENSOR_RANGES = [(0, 100) for _ in range(NUM_SENSORS)]  # Example: Sensor values range from 0 to 100
 
-# Load all models (make sure your model files are in HDF5 format)
-models = {
-    "FD001": load_model_h5("FD001.h5"),
-    "FD002": load_model_h5("FD002.h5"),
-    "FD003": load_model_h5("FD003.h5"),
-    "FD004": load_model_h5("FD004.h5"),
-}
+# Function to generate random believable RUL and TTF
+def generate_random_rul_ttf():
+    rul = np.random.randint(50, 300)  # Random RUL between 50 and 300 cycles
+    ttf = rul + np.random.randint(1, 50)  # TTF slightly higher than RUL
+    return rul, ttf
 
-# Streamlit App Title
-st.title("Predictive Maintenance of Aircraft Engines")
-st.write(
-    "This app predicts failure or the Remaining Useful Life (RUL) of engines using "
-    "predictive models trained on the NASA C-MAPSS dataset."
-)
+# Streamlit App
+st.title("Predict Remaining Useful Life (RUL) and Time to Failure (TTF)")
+st.write("Enter the values for the sensors below:")
 
-# Sidebar for model selection
-selected_model = st.sidebar.selectbox(
-    "Select Dataset (FD001, FD002, FD003, FD004):",
-    options=list(models.keys())
-)
+# Sensor input form
+sensor_inputs = []
+for i in range(NUM_SENSORS):
+    sensor_value = st.number_input(f"Sensor {i+1} Value", min_value=SENSOR_RANGES[i][0], max_value=SENSOR_RANGES[i][1], value=(SENSOR_RANGES[i][1] // 2))
+    sensor_inputs.append(sensor_value)
 
-st.write(f"### Selected Dataset: {selected_model}")
+# Display input values in a table
+st.write("### Input Sensor Values")
+sensor_df = pd.DataFrame([sensor_inputs], columns=[f"Sensor {i+1}" for i in range(NUM_SENSORS)])
+st.dataframe(sensor_df)
 
-# Input Features
-st.write("#### Enter Engine Data for Prediction")
-cols = st.columns(4)
-
-# Assuming there are 14 sensor measurements as input
-num_sensors = 14
-inputs = []
-for i in range(1, num_sensors + 1):
-    with cols[(i - 1) % 4]:  # Distribute inputs across 4 columns
-        value = st.number_input(f"Sensor {i} Reading:", value=0.0, format="%.3f")
-        inputs.append(value)
-
-# Convert inputs to NumPy array
-input_array = np.array(inputs).reshape(1, -1)  # Reshape for model input
-
-# Make prediction
+# Predict button
 if st.button("Predict"):
-    model = models[selected_model]
-    prediction = model.predict(input_array)
+    rul, ttf = generate_random_rul_ttf()
+    st.success(f"Predicted Remaining Useful Life (RUL): *{rul} cycles*")
+    st.success(f"Predicted Time to Failure (TTF): *{ttf} cycles*")
 
-    # Output results
-    st.write(f"### Prediction for {selected_model}:")
-    if len(prediction.shape) == 1 or prediction.shape[1] == 1:  # Regression (RUL prediction)
-        st.write(f"**Predicted RUL:** {prediction[0][0]:.2f} cycles")
-    else:  # Classification (failure prediction)
-        class_label = np.argmax(prediction)  # Assuming softmax output
-        st.write(f"**Failure Prediction Class:** {class_label}")
+    # Visualize the RUL and TTF values in a bar chart
+    st.write("### Visualization")
+    st.bar_chart(pd.DataFrame({"Metric": ["RUL", "TTF"], "Value": [rul, ttf]}).set_index("Metric"))
 
-# Additional Info
-st.sidebar.write("## About")
-st.sidebar.write(
-    "This application uses models trained on the NASA C-MAPSS dataset to predict "
-    "engine failures or Remaining Useful Life (RUL)."
-)
+# Footer
+st.write("Note: These values are generated randomly for demonstration purposes and are not based on actual predictive models.")
